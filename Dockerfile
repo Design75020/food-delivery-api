@@ -10,11 +10,11 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
-# Install all dependencies (including devDeps for build)
+# Install all dependencies (prisma is now in dependencies, not devDependencies)
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client using the LOCAL prisma@5 (not npx which pulls v7)
-# prisma generate only reads schema.prisma — no DB connection required
+# Generate Prisma client — reads schema.prisma only, no real DB needed
+# Dummy URL satisfies the env validation
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm exec prisma generate
 
@@ -36,10 +36,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
-# Install production dependencies only
+# Install production dependencies (includes prisma now)
 RUN pnpm install --frozen-lockfile --prod
 
-# Re-generate Prisma client using local prisma@5
+# Re-generate Prisma client in production image
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm exec prisma generate
 
@@ -49,5 +49,5 @@ COPY --from=builder /app/dist ./dist
 # Expose port
 EXPOSE 3000
 
-# At runtime: run migrations (needs real DATABASE_URL) then start server
+# At runtime: run migrations then start server
 CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/server.js"]
