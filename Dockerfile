@@ -1,31 +1,25 @@
 # ─── Stage 1: Builder ────────────────────────────────────────────────────────
-# Use Debian-based image to avoid OpenSSL issues with Prisma on Alpine
 FROM node:22-slim AS builder
 
-# Install OpenSSL (required by Prisma schema engine)
+# Install OpenSSL for Prisma
 RUN apt-get update -qq && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy dependency files
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
-# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client (no real DB needed at build time)
+# Generate Prisma client (dummy URL for build time)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm exec prisma generate
 
-# Copy source
 COPY tsconfig.json ./
 COPY src ./src/
 
-# Compile TypeScript
 RUN pnpm build
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
@@ -38,22 +32,20 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy dependency files
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
-# Install production dependencies
+# Install production + prisma deps
 RUN pnpm install --frozen-lockfile --prod
 
-# Re-generate Prisma client in production image
+# Re-generate Prisma client
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm exec prisma generate
 
-# Copy compiled output from builder
+# Copy compiled output
 COPY --from=builder /app/dist ./dist
 
-# Expose port
 EXPOSE 3000
 
-# At runtime: run migrations then start server
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/server.js"]
+# Migration is handled inside server.ts via execSync
+CMD ["node", "dist/server.js"]
