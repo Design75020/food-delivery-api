@@ -13,10 +13,10 @@ COPY prisma ./prisma/
 # Install all dependencies (including devDeps for build)
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client — does NOT connect to DB, only reads schema.prisma
-# A dummy URL is required to satisfy the env check at generate time
+# Generate Prisma client using the LOCAL prisma@5 (not npx which pulls v7)
+# prisma generate only reads schema.prisma — no DB connection required
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN npx prisma generate
+RUN pnpm exec prisma generate
 
 # Copy source
 COPY tsconfig.json ./
@@ -39,9 +39,9 @@ COPY prisma ./prisma/
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
 
-# Re-generate Prisma client in production image (still no real DB needed here)
+# Re-generate Prisma client using local prisma@5
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN npx prisma generate
+RUN pnpm exec prisma generate
 
 # Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
@@ -50,4 +50,4 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 3000
 
 # At runtime: run migrations (needs real DATABASE_URL) then start server
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/server.js"]
