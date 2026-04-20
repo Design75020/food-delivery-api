@@ -1,6 +1,9 @@
 # ─── Stage 1: Builder ────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 
+# Install OpenSSL for Prisma (required on Alpine)
+RUN apk add --no-cache openssl libc6-compat
+
 WORKDIR /app
 
 # Install pnpm
@@ -14,7 +17,6 @@ COPY prisma ./prisma/
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma client — reads schema.prisma only, no real DB needed
-# Dummy URL satisfies the env validation
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm exec prisma generate
 
@@ -27,6 +29,9 @@ RUN pnpm build
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
 FROM node:22-alpine AS production
+
+# Install OpenSSL for Prisma runtime (required on Alpine)
+RUN apk add --no-cache openssl libc6-compat
 
 WORKDIR /app
 
