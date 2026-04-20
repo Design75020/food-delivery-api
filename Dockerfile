@@ -1,8 +1,9 @@
 # ─── Stage 1: Builder ────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+# Use Debian-based image to avoid OpenSSL issues with Prisma on Alpine
+FROM node:22-slim AS builder
 
-# Install OpenSSL for Prisma (required on Alpine)
-RUN apk add --no-cache openssl libc6-compat
+# Install OpenSSL (required by Prisma schema engine)
+RUN apt-get update -qq && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -13,10 +14,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
-# Install all dependencies (prisma is now in dependencies, not devDependencies)
+# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client — reads schema.prisma only, no real DB needed
+# Generate Prisma client (no real DB needed at build time)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm exec prisma generate
 
@@ -28,10 +29,10 @@ COPY src ./src/
 RUN pnpm build
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
-FROM node:22-alpine AS production
+FROM node:22-slim AS production
 
-# Install OpenSSL for Prisma runtime (required on Alpine)
-RUN apk add --no-cache openssl libc6-compat
+# Install OpenSSL for Prisma runtime
+RUN apt-get update -qq && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -41,7 +42,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
-# Install production dependencies (includes prisma now)
+# Install production dependencies
 RUN pnpm install --frozen-lockfile --prod
 
 # Re-generate Prisma client in production image
